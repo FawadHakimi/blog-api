@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from settings.conf import SECRET_KEY
+from settings import conf
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = SECRET_KEY
+SECRET_KEY = conf.SECRET_KEY
 
 ALLOWED_HOSTS: list[str] = []
 

@@ -1,6 +1,5 @@
 from settings.base import *
 from settings.conf import (
-    ALLOWED_HOSTS,
     DB_HOST,
     DB_NAME,
     DB_PASSWORD,

@@ -1,4 +1,5 @@
-from decouple import config, Csv
+from decouple import Csv, config
+
 ENV_ID: str = config("BLOG_ENV_ID", default="local")
 SECRET_KEY: str = config("BLOG_SECRET_KEY")
 
