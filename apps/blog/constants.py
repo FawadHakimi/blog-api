@@ -84,3 +84,7 @@ POST_STATUS_FILTER_PARAM = "status__exact"
 # Post status values (used by the model and by the admin tab links)
 POST_STATUS_DRAFT = "draft"
 POST_STATUS_PUBLISHED = "published"
+
+# Admin: Category and Tag
+POSTS_SECTION_HEIGHT = 300
+POSTS_COUNT_DESCRIPTION = "Posts"
