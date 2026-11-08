@@ -9,6 +9,9 @@ SECRET_KEY = conf.SECRET_KEY
 ALLOWED_HOSTS: list[str] = []
 
 INSTALLED_APPS = [
+    "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
