@@ -1,1 +1,25 @@
+line-length = 100
 extend-exclude = ["migrations"]
+
+[lint]
+select = ["E", "W", "F", "I", "N", "ANN"]
+ignore = ["ANN401"]
+
+[lint.per-file-ignores]
+"settings/env/*.py" = ["F403", "F405"]
+
+[lint.isort]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "drf",
+    "django",
+    "first-party",
+    "local-folder",
+]
+known-first-party = ["apps", "settings"]
+
+[lint.isort.sections]
+drf = ["rest_framework"]
+django = ["django"]
