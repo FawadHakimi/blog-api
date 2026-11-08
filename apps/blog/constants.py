@@ -69,3 +69,18 @@ TAG_NAMES = [
     "Productivity",
     "Architecture",
 ]
+
+# Admin: environment badge (BLOG_ENV_ID decides which one is shown)
+ENV_ID_PROD = "prod"
+ENV_LABEL_LOCAL = "Local"
+ENV_LABEL_PROD = "Production"
+ENV_TYPE_LOCAL = "warning" # orange
+ENV_TYPE_PROD = "danger" # red
+
+# Admin: URL names and query strings
+POST_CHANGELIST_URL_NAME = "admin:blog_post_changelist"
+POST_STATUS_FILTER_PARAM = "status__exact"
+
+# Post status values (used by the model and by the admin tab links)
+POST_STATUS_DRAFT = "draft"
+POST_STATUS_PUBLISHED = "published"
