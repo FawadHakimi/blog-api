@@ -3,6 +3,8 @@ from decouple import Csv, config
 ENV_ID: str = config("BLOG_ENV_ID", default="local")
 SECRET_KEY: str = config("BLOG_SECRET_KEY")
 
+SQL_LOGGING: bool = config("BLOG_SQL_LOGGING", default=False, cast=bool)
+
 ALLOWED_HOSTS: list[str] = config("BLOG_ALLOWED_HOSTS", default="", cast=Csv())
 
 DB_NAME: str = config("BLOG_DB_NAME", default="blog")

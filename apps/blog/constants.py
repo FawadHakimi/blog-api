@@ -88,3 +88,6 @@ POST_STATUS_PUBLISHED = "published"
 # Admin: Category and Tag
 POSTS_SECTION_HEIGHT = 300
 POSTS_COUNT_DESCRIPTION = "Posts"
+
+# Admin: Comment
+COMMENT_BODY_PREVIEW_LENGTH = 60
