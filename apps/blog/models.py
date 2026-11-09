@@ -3,7 +3,9 @@ from django.db import models
 
 from apps.blog.constants import (
     CATEGORY_NAME_MAX_LENGTH,
+    POST_STATUS_DRAFT,
     POST_STATUS_MAX_LENGTH,
+    POST_STATUS_PUBLISHED,
     POST_TITLE_MAX_LENGTH,
     TAG_NAME_MAX_LENGTH,
 )
@@ -27,8 +29,8 @@ class Tag(models.Model):
 
 class Post(models.Model):
     class Status(models.TextChoices):
-        DRAFT = "draft", "Draft"
-        PUBLISHED = "published", "Published"
+        DRAFT = POST_STATUS_DRAFT, "Draft"
+        PUBLISHED = POST_STATUS_PUBLISHED, "Published"
 
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -42,6 +44,7 @@ class Post(models.Model):
         Category,
         on_delete=models.SET_NULL,
         null=True,
+        blank=True,
         related_name="posts",
     )
     tags = models.ManyToManyField(Tag, blank=True, related_name="posts")

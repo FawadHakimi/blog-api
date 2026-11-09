@@ -70,12 +70,13 @@ TAG_NAMES = [
     "Architecture",
 ]
 
+
 # Admin: environment badge (BLOG_ENV_ID decides which one is shown)
 ENV_ID_PROD = "prod"
 ENV_LABEL_LOCAL = "Local"
 ENV_LABEL_PROD = "Production"
-ENV_TYPE_LOCAL = "warning" # orange
-ENV_TYPE_PROD = "danger" # red
+ENV_TYPE_LOCAL = "warning"  # orange
+ENV_TYPE_PROD = "danger"  # red
 
 # Admin: URL names and query strings
 POST_CHANGELIST_URL_NAME = "admin:blog_post_changelist"
@@ -91,3 +92,37 @@ POSTS_COUNT_DESCRIPTION = "Posts"
 
 # Admin: Comment
 COMMENT_BODY_PREVIEW_LENGTH = 60
+
+# Admin: label colors (Unfold label types)
+LABEL_SUCCESS = "success"
+LABEL_WARNING = "warning"
+LABEL_DANGER = "danger"
+LABEL_INFO = "info"
+LABEL_NEUTRAL = "default"
+
+# Admin: users
+USER_ACTIVE_TEXT = "Active"
+USER_INACTIVE_TEXT = "Inactive"
+USER_STAFF_TEXT = "Staff"
+USER_REGULAR_TEXT = "Regular"
+USERS_ACTIVATED_MESSAGE = "{count} user(s) activated."
+USERS_DEACTIVATED_MESSAGE = "{count} user(s) deactivated. Your own account was skipped."
+
+# Admin: posts
+TAGS_DROPDOWN_HEIGHT = 200
+COMMENTS_INLINE_PER_PAGE = 10
+COMMENT_LIST_URL_NAME = "admin:blog_comment_changelist"
+COMMENT_POST_FILTER_PARAM = "post__id__exact"
+POSTS_PUBLISHED_MESSAGE = "{count} post(s) published."
+POSTS_MOVED_TO_DRAFTS_MESSAGE = "{count} post(s) moved to drafts."
+POST_PUBLISHED_MESSAGE = "Post '{title}' is now published."
+POST_UNPUBLISHED_MESSAGE = "Post '{title}' is now a draft."
+
+# Dashboard
+DASHBOARD_TOP_AUTHORS_LIMIT = 5
+DASHBOARD_CHART_HEIGHT = 320
+DASHBOARD_CHART_COLOR = "var(--color-primary-600)"
+PERCENT_TOTAL = 100
+PERCENT_DECIMALS = 1
+POSTS_COMMENT_SECTION_TITLE = "Comments on this post"
+USER_LIST_URL_NAME = "admin:auths_user_changelist"
