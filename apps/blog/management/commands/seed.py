@@ -1,5 +1,6 @@
 import random
 import time
+from datetime import datetime, timedelta
 from typing import Any
 
 from faker import Faker
@@ -8,6 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
+from django.utils import timezone
 from django.utils.text import slugify
 
 from apps.blog.constants import (
@@ -16,14 +18,18 @@ from apps.blog.constants import (
     DEFAULT_COMMENTS,
     DEFAULT_POSTS,
     DEFAULT_USERS,
+    EDITED_POST_RATIO,
     INACTIVE_USER_RATIO,
     MAX_COMMENT_SENTENCES,
+    MAX_EDIT_DELAY_DAYS,
     MAX_POST_PARAGRAPHS,
     MAX_TAGS_PER_POST,
     MIN_COMMENT_SENTENCES,
+    MIN_EDIT_DELAY_DAYS,
     MIN_POST_PARAGRAPHS,
     MIN_TAGS_PER_POST,
     NO_CATEGORY_POST_RATIO,
+    POST_DATE_RANGE_DAYS,
     POST_SLUG_MAX_LENGTH,
     PUBLISHED_POST_RATIO,
     SEED_EMAIL_DOMAIN,
@@ -67,6 +73,12 @@ def make_unique_email(first_name: str, last_name: str, used_emails: set[str]) ->
         email = f"{local_part}{counter}@{SEED_EMAIL_DOMAIN}"
         counter += 1
     return email
+
+
+def random_datetime_between(start: datetime, end: datetime) -> datetime:
+    """Return a random datetime between start and end (both included)."""
+    seconds = int((end - start).total_seconds())
+    return start + timedelta(seconds=random.randint(0, seconds))
 
 
 class Command(BaseCommand):
@@ -195,6 +207,7 @@ class Command(BaseCommand):
                 )
             )
         Post.objects.bulk_create(posts, batch_size=BULK_BATCH_SIZE)
+        self._set_post_dates(posts)
 
         # bulk_create does not save many-to-many links, so tags are attached one post at a time.
         max_tags = min(MAX_TAGS_PER_POST, len(tags))
@@ -202,17 +215,29 @@ class Command(BaseCommand):
             post.tags.set(random.sample(tags, random.randint(MIN_TAGS_PER_POST, max_tags)))
         return len(posts)
 
+    def _set_post_dates(self, posts: list[Post]) -> None:
+        now = timezone.now()
+        year_ago = now - timedelta(days=POST_DATE_RANGE_DAYS)
+        for post in posts:
+            post.created_at = random_datetime_between(year_ago, now)
+            post.updated_at = post.created_at
+            if random.random() < EDITED_POST_RATIO:
+                delay = timedelta(days=random.randint(MIN_EDIT_DELAY_DAYS, MAX_EDIT_DELAY_DAYS))
+                post.updated_at = min(post.created_at + delay, now)
+        Post.objects.bulk_update(posts, ["created_at", "updated_at"], batch_size=BULK_BATCH_SIZE)
+
     def _create_comments(self, fake: Faker, count: int) -> int:
         if count == 0:
             return 0
         user_ids = list(User.objects.values_list("id", flat=True))
         if not user_ids:
             raise CommandError(NO_USERS_ERROR)
-        post_ids = list(
-            Post.objects.filter(status=Post.Status.PUBLISHED).values_list("id", flat=True)
+        post_dates = dict(
+            Post.objects.filter(status=Post.Status.PUBLISHED).values_list("id", "created_at")
         )
-        if not post_ids:
+        if not post_dates:
             raise CommandError(NO_PUBLISHED_POSTS_ERROR)
+        post_ids = list(post_dates)
 
         comments = [
             Comment(
@@ -220,13 +245,17 @@ class Command(BaseCommand):
                 author_id=random.choice(user_ids),
                 body=" ".join(
                     fake.sentences(
-                        nb=random.randint(MIN_COMMENT_SENTENCES, MAX_COMMENT_SENTENCES)
-                    )
+                        nb=random.randint(MIN_COMMENT_SENTENCES, MAX_COMMENT_SENTENCES))
                 ),
             )
             for _ in range(count)
         ]
         Comment.objects.bulk_create(comments, batch_size=BULK_BATCH_SIZE)
+
+        now = timezone.now()
+        for comment in comments:
+            comment.created_at = random_datetime_between(post_dates[comment.post_id], now)
+        Comment.objects.bulk_update(comments, ["created_at"], batch_size=BULK_BATCH_SIZE)
         return len(comments)
 
     def _print_summary(self, created: dict[str, int], elapsed: float) -> None:
