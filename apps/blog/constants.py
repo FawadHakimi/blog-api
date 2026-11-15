@@ -132,3 +132,8 @@ PERCENT_TOTAL = 100
 PERCENT_DECIMALS = 1
 POSTS_COMMENT_SECTION_TITLE = "Comments on this post"
 USER_LIST_URL_NAME = "admin:auths_user_changelist"
+
+# Queries command
+PREVIEW_ROWS = 5
+MUTATING_QUERIES = frozenset(range(40, 45))
+
