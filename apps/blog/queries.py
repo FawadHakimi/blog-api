@@ -2,11 +2,18 @@ from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
-from django.db.models import QuerySet
+from django.db.models import F, Q, QuerySet, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.auths.models import User
-from apps.blog.constants import EMAIL_DOMAIN_PREFIX, NEWEST_POSTS_LIMIT, POSTS_PER_PAGE
+from apps.blog.constants import (
+    EDITED_AFTER_HOURS,
+    EMAIL_DOMAIN_PREFIX,
+    NEWEST_POSTS_LIMIT,
+    POSTS_PER_PAGE,
+    UNCATEGORIZED_LABEL,
+)
 from apps.blog.models import Category, Comment, Post
 
 # ---------------------------------------------------------------- Level 1
@@ -126,6 +133,66 @@ def posts_with_both_tags(first_slug: str, second_slug: str) -> QuerySet[Post]:
     return Post.objects.filter(tags__slug=first_slug).filter(tags__slug=second_slug)
 
 
+# ---------------------------------------------------------------- Level 4
+
+
+def search_posts(text: str) -> QuerySet[Post]:
+    """Return posts that have the text in the title or in the body (case-insensitive)."""
+    return Post.objects.filter(Q(title__icontains=text) | Q(body__icontains=text))
+
+
+def published_posts_missing_info() -> QuerySet[Post]:
+    """Return published posts with no category or no tags. Every post appears once."""
+    return Post.objects.filter(
+        Q(category__isnull=True) | Q(tags__isnull=True),
+        status=Post.Status.PUBLISHED,
+    ).distinct()
+
+
+def edited_posts() -> QuerySet[Post]:
+    """Return posts edited more than EDITED_AFTER_HOURS hours after they were created."""
+    threshold = timedelta(hours=EDITED_AFTER_HOURS)
+    return Post.objects.filter(updated_at__gt=F("created_at") + threshold)
+
+
+def comments_by_post_author() -> QuerySet[Comment]:
+    """Return comments that the author of the post wrote under their own post."""
+    return Comment.objects.filter(author=F("post__author"))
+
+
+def comments_before_post() -> QuerySet[Comment]:
+    """Return comments created before their post. Must be empty if the seed dates are right."""
+    return Comment.objects.filter(created_at__lt=F("post__created_at"))
+
+
+# ---------------------------------------------------------------- Level 5
+
+
+def published_authors_emails() -> list[str]:
+    """Return unique emails of authors who have published posts, sorted A to Z."""
+    emails = (
+        User.objects.filter(posts__status=Post.Status.PUBLISHED)
+        .values_list("email", flat=True)
+        .distinct()
+        .order_by("email")
+    )
+    return list(emails)
+
+
+def published_posts_overview() -> list[dict[str, Any]]:
+    """Return title, author_email and category_name of every published post."""
+    rows = (
+        Post.objects.filter(status=Post.Status.PUBLISHED)
+        .order_by("-created_at")
+        .values(
+            "title",
+            author_email=F("author__email"),
+            category_name=Coalesce("category__name", Value(UNCATEGORIZED_LABEL)),
+        )
+    )
+    return list(rows)
+
+
 QUERIES: dict[int, Callable[..., Any]] = {
     1: categories_by_name,
     2: published_posts,
@@ -148,4 +215,11 @@ QUERIES: dict[int, Callable[..., Any]] = {
     19: posts_without_tags,
     20: users_without_comments,
     21: posts_with_both_tags,
+    22: search_posts,
+    23: published_posts_missing_info,
+    24: edited_posts,
+    25: comments_by_post_author,
+    26: comments_before_post,
+    27: published_authors_emails,
+    28: published_posts_overview,
 }

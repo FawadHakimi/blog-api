@@ -143,3 +143,8 @@ POSTS_PER_PAGE = 10
 
 # Queries: Level 2
 EMAIL_DOMAIN_PREFIX = '@'
+
+# Queries: Level 4 & 5
+EDITED_AFTER_HOURS = 1
+UNCATEGORIZED_LABEL = "Uncategorized"
+

@@ -65,6 +65,7 @@ def build_sample_arguments() -> dict[int, dict[str, Any]]:
         16: {"tag_slug": slugify(TAG_NAMES[0])},
         17: {"category_slug": slugify(CATEGORY_NAMES[0])},
         21: two_tags_of_one_post(),
+        22: {"text": SAMPLE_TITLE_WORD},
     }
 
 
