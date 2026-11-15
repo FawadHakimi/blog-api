@@ -140,3 +140,6 @@ MUTATING_QUERIES = frozenset(range(40, 45))
 # Queries: Level 1
 NEWEST_POSTS_LIMIT = 5
 POSTS_PER_PAGE = 10
+
+# Queries: Level 2
+EMAIL_DOMAIN_PREFIX = '@'

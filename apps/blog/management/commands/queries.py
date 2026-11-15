@@ -1,24 +1,45 @@
+from datetime import timedelta
 from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection
 from django.db.models import Model, QuerySet
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
+from django.utils.text import slugify
 
-from apps.blog.constants import MUTATING_QUERIES, PREVIEW_ROWS
+from apps.blog.constants import (
+    CATEGORY_NAMES,
+    MUTATING_QUERIES,
+    PREVIEW_ROWS,
+    SEED_EMAIL_DOMAIN,
+)
 from apps.blog.models import Post
 from apps.blog.queries import QUERIES
 
 UNKNOWN_QUERY_ERROR = "Query #{number} does not exist. Available numbers: {available}."
 INDENT = "  "
+
+# Sample values for the queries that take arguments.
 SAMPLE_PAGE = 2
+SAMPLE_TITLE_WORD = "a"
+SAMPLE_SLUG_COUNT = 2
+SAMPLE_DAYS = 30
 
 
 def build_sample_arguments() -> dict[int, dict[str, Any]]:
     """Return sample arguments for the queries that take parameters: {number: {name: value}}."""
+    now = timezone.now()
+    today = timezone.localdate()
     return {
         4: {"slug": Post.objects.values_list("slug", flat=True).first()},
         7: {"page": SAMPLE_PAGE},
+        8: {"word": SAMPLE_TITLE_WORD},
+        9: {"domain": SEED_EMAIL_DOMAIN},
+        11: {"slugs": [slugify(name) for name in CATEGORY_NAMES[:SAMPLE_SLUG_COUNT]]},
+        12: {"year": now.year, "month": now.month},
+        13: {"days": SAMPLE_DAYS},
+        14: {"start": today - timedelta(days=SAMPLE_DAYS), "end": today},
     }
 
 
