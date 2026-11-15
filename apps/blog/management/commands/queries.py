@@ -3,16 +3,18 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import connection
-from django.db.models import Model, QuerySet
+from django.db.models import Count, Model, QuerySet
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from django.utils.text import slugify
 
+from apps.auths.models import User
 from apps.blog.constants import (
     CATEGORY_NAMES,
     MUTATING_QUERIES,
     PREVIEW_ROWS,
     SEED_EMAIL_DOMAIN,
+    TAG_NAMES,
 )
 from apps.blog.models import Post
 from apps.blog.queries import QUERIES
@@ -25,12 +27,31 @@ SAMPLE_PAGE = 2
 SAMPLE_TITLE_WORD = "a"
 SAMPLE_SLUG_COUNT = 2
 SAMPLE_DAYS = 30
+TAG_PAIR_SIZE = 2
+
+
+def two_tags_of_one_post() -> dict[str, str]:
+    """Return slugs of two tags that belong to the same post, so query 21 has a result."""
+    post = (
+        Post.objects.annotate(tag_count=Count("tags"))
+        .filter(tag_count__gte=TAG_PAIR_SIZE)
+        .first()
+    )
+    if post is None:
+        return {"first_slug": "", "second_slug": ""}
+    first, second = post.tags.values_list("slug", flat=True)[:TAG_PAIR_SIZE]
+    return {"first_slug": first, "second_slug": second}
 
 
 def build_sample_arguments() -> dict[int, dict[str, Any]]:
     """Return sample arguments for the queries that take parameters: {number: {name: value}}."""
     now = timezone.now()
     today = timezone.localdate()
+    author_email = (
+        User.objects.filter(posts__status=Post.Status.PUBLISHED)
+        .values_list("email", flat=True)
+        .first()
+    )
     return {
         4: {"slug": Post.objects.values_list("slug", flat=True).first()},
         7: {"page": SAMPLE_PAGE},
@@ -40,6 +61,10 @@ def build_sample_arguments() -> dict[int, dict[str, Any]]:
         12: {"year": now.year, "month": now.month},
         13: {"days": SAMPLE_DAYS},
         14: {"start": today - timedelta(days=SAMPLE_DAYS), "end": today},
+        15: {"email": author_email},
+        16: {"tag_slug": slugify(TAG_NAMES[0])},
+        17: {"category_slug": slugify(CATEGORY_NAMES[0])},
+        21: two_tags_of_one_post(),
     }
 
 
