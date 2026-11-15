@@ -6,13 +6,20 @@ from django.db.models import Model, QuerySet
 from django.test.utils import CaptureQueriesContext
 
 from apps.blog.constants import MUTATING_QUERIES, PREVIEW_ROWS
+from apps.blog.models import Post
 from apps.blog.queries import QUERIES
 
 UNKNOWN_QUERY_ERROR = "Query #{number} does not exist. Available numbers: {available}."
 INDENT = "  "
+SAMPLE_PAGE = 2
 
-# Sample arguments for queries that take parameters: {query number: {argument name: value}}.
-SAMPLE_ARGUMENTS: dict[int, dict[str, Any]] = {}
+
+def build_sample_arguments() -> dict[int, dict[str, Any]]:
+    """Return sample arguments for the queries that take parameters: {number: {name: value}}."""
+    return {
+        4: {"slug": Post.objects.values_list("slug", flat=True).first()},
+        7: {"page": SAMPLE_PAGE},
+    }
 
 
 class Command(BaseCommand):
@@ -34,12 +41,15 @@ class Command(BaseCommand):
         else:
             numbers = [key for key in sorted(QUERIES) if key not in MUTATING_QUERIES]
 
+        sample_arguments = build_sample_arguments()
         for query_number in numbers:
-            self._run_query(query_number, show_sql)
+            self._run_query(query_number, show_sql, sample_arguments)
 
-    def _run_query(self, number: int, show_sql: bool) -> None:
+    def _run_query(
+        self, number: int, show_sql: bool, sample_arguments: dict[int, dict[str, Any]]
+    ) -> None:
         function = QUERIES[number]
-        arguments = SAMPLE_ARGUMENTS.get(number, {})
+        arguments = sample_arguments.get(number, {})
         annotation_names: list[str] = []
 
         with CaptureQueriesContext(connection) as context:

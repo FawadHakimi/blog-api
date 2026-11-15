@@ -137,3 +137,6 @@ USER_LIST_URL_NAME = "admin:auths_user_changelist"
 PREVIEW_ROWS = 5
 MUTATING_QUERIES = frozenset(range(40, 45))
 
+# Queries: Level 1
+NEWEST_POSTS_LIMIT = 5
+POSTS_PER_PAGE = 10
