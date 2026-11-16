@@ -8,12 +8,15 @@ from django.db.models import (
     Case,
     CharField,
     Count,
+    Exists,
     F,
     Max,
     Min,
+    OuterRef,
     Prefetch,
     Q,
     QuerySet,
+    Subquery,
     Value,
     When,
 )
@@ -413,6 +416,41 @@ def categories_with_published_posts() -> dict[str, list[str]]:
     }
 
 
+# ---------------------------------------------------------------- Level 11
+
+
+def posts_with_last_comment() -> QuerySet[Post]:
+    """Return published posts, each with last_comment: the body of its newest comment."""
+    newest_comment_body = (
+        Comment.objects.filter(post=OuterRef("pk"))
+        .order_by("-created_at", "-id")
+        .values("body")[:1]
+    )
+    return (
+        Post.objects.filter(status=Post.Status.PUBLISHED)
+        .annotate(last_comment=Subquery(newest_comment_body))
+        .order_by("-created_at")
+    )
+
+
+def posts_with_staff_comments() -> QuerySet[Post]:
+    """Return posts that have at least one comment from a staff user."""
+    staff_comments = Comment.objects.filter(post=OuterRef("pk"), author__is_staff=True)
+    return Post.objects.filter(Exists(staff_comments))
+
+
+def users_with_draft_as_latest_post() -> QuerySet[User]:
+    """Return users whose newest post is a draft, with latest_post_status."""
+    newest_post_status = (
+        Post.objects.filter(author=OuterRef("pk"))
+        .order_by("-created_at", "-id")
+        .values("status")[:1]
+    )
+    return User.objects.annotate(latest_post_status=Subquery(newest_post_status)).filter(
+        latest_post_status=Post.Status.DRAFT
+    )
+
+
 QUERIES: dict[int, Callable[..., Any]] = {
     1: categories_by_name,
     2: published_posts,
@@ -461,4 +499,7 @@ QUERIES: dict[int, Callable[..., Any]] = {
     45: published_feed,
     46: newest_posts_with_tags,
     47: categories_with_published_posts,
+    48: posts_with_last_comment,
+    49: posts_with_staff_comments,
+    50: users_with_draft_as_latest_post,
 }
