@@ -28,6 +28,7 @@ SAMPLE_TITLE_WORD = "a"
 SAMPLE_SLUG_COUNT = 2
 SAMPLE_DAYS = 30
 TAG_PAIR_SIZE = 2
+SAMPLE_MIN_POSTS = 10
 
 
 def two_tags_of_one_post() -> dict[str, str]:
@@ -66,6 +67,7 @@ def build_sample_arguments() -> dict[int, dict[str, Any]]:
         17: {"category_slug": slugify(CATEGORY_NAMES[0])},
         21: two_tags_of_one_post(),
         22: {"text": SAMPLE_TITLE_WORD},
+        34: {"min_posts": SAMPLE_MIN_POSTS},
     }
 
 

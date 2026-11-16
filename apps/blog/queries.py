@@ -2,19 +2,21 @@ from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
-from django.db.models import F, Q, QuerySet, Value
+from django.db.models import Avg, Count, F, Max, Min, Q, QuerySet, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from apps.auths.models import User
 from apps.blog.constants import (
+    AVERAGE_DECIMALS,
     EDITED_AFTER_HOURS,
     EMAIL_DOMAIN_PREFIX,
     NEWEST_POSTS_LIMIT,
     POSTS_PER_PAGE,
+    TOP_AUTHORS_LIMIT,
     UNCATEGORIZED_LABEL,
 )
-from apps.blog.models import Category, Comment, Post
+from apps.blog.models import Category, Comment, Post, Tag
 
 # ---------------------------------------------------------------- Level 1
 
@@ -193,6 +195,75 @@ def published_posts_overview() -> list[dict[str, Any]]:
     return list(rows)
 
 
+# ---------------------------------------------------------------- Level 6
+
+
+def posts_stats() -> dict[str, Any]:
+    """Return the number of posts (all, published, drafts) and the first and last post date."""
+    return Post.objects.aggregate(
+        total=Count("id"),
+        published=Count("id", filter=Q(status=Post.Status.PUBLISHED)),
+        drafts=Count("id", filter=Q(status=Post.Status.DRAFT)),
+        first_post_at=Min("created_at"),
+        last_post_at=Max("created_at"),
+    )
+
+
+def average_comments_per_post() -> float:
+    """Return the average number of comments on a published post (0.0 if there are no posts)."""
+    result = (
+        Post.objects.filter(status=Post.Status.PUBLISHED)
+        .annotate(comment_count=Count("comments"))
+        .aggregate(average=Avg("comment_count", default=0.0))
+    )
+    return round(result["average"], AVERAGE_DECIMALS)
+
+
+# ---------------------------------------------------------------- Level 7
+
+
+def categories_with_post_count() -> QuerySet[Category]:
+    """Return every category with post_count. Most posts first, then by name."""
+    return Category.objects.annotate(post_count=Count("posts")).order_by("-post_count", "name")
+
+
+def categories_with_published_count() -> QuerySet[Category]:
+    """Return every category with published_count. Categories with 0 published posts stay."""
+    return Category.objects.annotate(
+        published_count=Count("posts", filter=Q(posts__status=Post.Status.PUBLISHED))
+    ).order_by("-published_count", "name")
+
+
+def top_authors() -> QuerySet[User]:
+    """Return the top users by number of published posts, with published_count."""
+    return User.objects.annotate(
+        published_count=Count("posts", filter=Q(posts__status=Post.Status.PUBLISHED))
+    ).order_by("-published_count", "email")[:TOP_AUTHORS_LIMIT]
+
+
+def popular_tags(min_posts: int) -> QuerySet[Tag]:
+    """Return tags used in at least min_posts posts, with post_count."""
+    return (
+        Tag.objects.annotate(post_count=Count("posts"))
+        .filter(post_count__gte=min_posts)
+        .order_by("-post_count", "name")
+    )
+
+
+def posts_per_status() -> list[dict[str, Any]]:
+    """Return the number of posts for each status: [{"status": ..., "count": ...}]."""
+    rows = Post.objects.values("status").annotate(count=Count("id")).order_by("status")
+    return list(rows)
+
+
+def users_activity() -> QuerySet[User]:
+    """Return every user with post_count and comment_count. distinct=True stops the multiplying."""
+    return User.objects.annotate(
+        post_count=Count("posts", distinct=True),
+        comment_count=Count("comments", distinct=True),
+    ).order_by("email")
+
+
 QUERIES: dict[int, Callable[..., Any]] = {
     1: categories_by_name,
     2: published_posts,
@@ -222,4 +293,13 @@ QUERIES: dict[int, Callable[..., Any]] = {
     26: comments_before_post,
     27: published_authors_emails,
     28: published_posts_overview,
+    29: posts_stats,
+    30: average_comments_per_post,
+    31: categories_with_post_count,
+    32: categories_with_published_count,
+    33: top_authors,
+    34: popular_tags,
+    35: posts_per_status,
+    36: users_activity,
+
 }
