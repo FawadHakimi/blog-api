@@ -27,8 +27,10 @@ SAMPLE_PAGE = 2
 SAMPLE_TITLE_WORD = "a"
 SAMPLE_SLUG_COUNT = 2
 SAMPLE_DAYS = 30
-TAG_PAIR_SIZE = 2
 SAMPLE_MIN_POSTS = 10
+SAMPLE_NAME_PREFIX_LENGTH = 3
+SAMPLE_NEW_TAG_NAME = "Django ORM"
+TAG_PAIR_SIZE = 2
 
 
 def two_tags_of_one_post() -> dict[str, str]:
@@ -44,6 +46,14 @@ def two_tags_of_one_post() -> dict[str, str]:
     return {"first_slug": first, "second_slug": second}
 
 
+def sample_full_name_text() -> str:
+    """Return a part of a real user's full name in lower case, so query 37 has a result."""
+    user = User.objects.order_by("id").first()
+    if user is None:
+        return ""
+    return f"{user.first_name} {user.last_name[:SAMPLE_NAME_PREFIX_LENGTH]}".lower()
+
+
 def build_sample_arguments() -> dict[int, dict[str, Any]]:
     """Return sample arguments for the queries that take parameters: {number: {name: value}}."""
     now = timezone.now()
@@ -53,6 +63,8 @@ def build_sample_arguments() -> dict[int, dict[str, Any]]:
         .values_list("email", flat=True)
         .first()
     )
+    first_category_slug = slugify(CATEGORY_NAMES[0])
+    first_tag_slug = slugify(TAG_NAMES[0])
     return {
         4: {"slug": Post.objects.values_list("slug", flat=True).first()},
         7: {"page": SAMPLE_PAGE},
@@ -63,11 +75,16 @@ def build_sample_arguments() -> dict[int, dict[str, Any]]:
         13: {"days": SAMPLE_DAYS},
         14: {"start": today - timedelta(days=SAMPLE_DAYS), "end": today},
         15: {"email": author_email},
-        16: {"tag_slug": slugify(TAG_NAMES[0])},
-        17: {"category_slug": slugify(CATEGORY_NAMES[0])},
+        16: {"tag_slug": first_tag_slug},
+        17: {"category_slug": first_category_slug},
         21: two_tags_of_one_post(),
         22: {"text": SAMPLE_TITLE_WORD},
         34: {"min_posts": SAMPLE_MIN_POSTS},
+        37: {"text": sample_full_name_text()},
+        40: {"name": SAMPLE_NEW_TAG_NAME},
+        41: {"days": SAMPLE_DAYS},
+        42: {"category_slug": first_category_slug, "tag_slug": first_tag_slug},
+        43: {"source_slug": slugify(CATEGORY_NAMES[-1]), "target_slug": first_category_slug},
     }
 
 
@@ -116,12 +133,25 @@ class Command(BaseCommand):
         self._print_result(result, annotation_names)
 
     def _print_result(self, result: Any, annotation_names: list[str]) -> None:
+        if self._is_mapping_of_lists(result):
+            # A mapping {name: [items]}, for example query 47.
+            for key, items in list(result.items())[:PREVIEW_ROWS]:
+                preview = items[:PREVIEW_ROWS]
+                self.stdout.write(f"{INDENT}{key}: {len(items)} items, first {preview}")
+            self.stdout.write(f"{INDENT}({len(result)} rows)")
+            return
         if not isinstance(result, list):
             self.stdout.write(f"{INDENT}{result}")
             return
         for row in result[:PREVIEW_ROWS]:
             self.stdout.write(f"{INDENT}{self._format_row(row, annotation_names)}")
         self.stdout.write(f"{INDENT}({len(result)} rows)")
+
+    def _is_mapping_of_lists(self, result: Any) -> bool:
+        """Return True for a non-empty dict whose values are all lists."""
+        if not isinstance(result, dict) or not result:
+            return False
+        return all(isinstance(value, list) for value in result.values())
 
     def _format_row(self, row: Any, annotation_names: list[str]) -> str:
         if isinstance(row, Model) and annotation_names:

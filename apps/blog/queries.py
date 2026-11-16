@@ -2,17 +2,42 @@ from collections.abc import Callable
 from datetime import date, timedelta
 from typing import Any
 
-from django.db.models import Avg, Count, F, Max, Min, Q, QuerySet, Value
-from django.db.models.functions import Coalesce
+from django.db import transaction
+from django.db.models import (
+    Avg,
+    Case,
+    CharField,
+    Count,
+    F,
+    Max,
+    Min,
+    Prefetch,
+    Q,
+    QuerySet,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce, Concat, TruncMonth
 from django.utils import timezone
+from django.utils.text import slugify
 
 from apps.auths.models import User
 from apps.blog.constants import (
     AVERAGE_DECIMALS,
     EDITED_AFTER_HOURS,
     EMAIL_DOMAIN_PREFIX,
+    FEED_LIMIT,
+    FEED_LINE_SEPARATOR,
+    FULL_NAME_SEPARATOR,
     NEWEST_POSTS_LIMIT,
+    NEWEST_TAGGED_POSTS_LIMIT,
+    POPULARITY_HOT,
+    POPULARITY_HOT_MIN_COMMENTS,
+    POPULARITY_NORMAL,
+    POPULARITY_NORMAL_MIN_COMMENTS,
+    POPULARITY_QUIET,
     POSTS_PER_PAGE,
+    TAG_LIST_SEPARATOR,
     TOP_AUTHORS_LIMIT,
     UNCATEGORIZED_LABEL,
 )
@@ -257,11 +282,135 @@ def posts_per_status() -> list[dict[str, Any]]:
 
 
 def users_activity() -> QuerySet[User]:
-    """Return every user with post_count and comment_count. distinct=True stops the multiplying."""
+    """Return every user with post_count and comment_count (distinct=True avoids multiplying)."""
     return User.objects.annotate(
         post_count=Count("posts", distinct=True),
         comment_count=Count("comments", distinct=True),
     ).order_by("email")
+
+
+# ---------------------------------------------------------------- Level 8
+
+
+def search_users_by_full_name(text: str) -> QuerySet[User]:
+    """Return users whose full name ("First Last") contains the text (case-insensitive)."""
+    return User.objects.annotate(
+        full_name=Concat("first_name", Value(FULL_NAME_SEPARATOR), "last_name")
+    ).filter(full_name__icontains=text)
+
+
+def published_posts_per_month() -> list[dict[str, Any]]:
+    """Return the number of published posts in each month, oldest month first."""
+    rows = (
+        Post.objects.filter(status=Post.Status.PUBLISHED)
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(count=Count("id"))
+        .order_by("month")
+    )
+    return list(rows)
+
+
+def posts_with_popularity() -> QuerySet[Post]:
+    """Return every post with comment_count and popularity (hot, normal or quiet)."""
+    return (
+        Post.objects.annotate(comment_count=Count("comments"))
+        .annotate(
+            popularity=Case(
+                When(comment_count__gte=POPULARITY_HOT_MIN_COMMENTS, then=Value(POPULARITY_HOT)),
+                When(
+                    comment_count__gte=POPULARITY_NORMAL_MIN_COMMENTS,
+                    then=Value(POPULARITY_NORMAL),
+                ),
+                default=Value(POPULARITY_QUIET),
+                output_field=CharField(),
+            )
+        )
+        .order_by("-comment_count", "-created_at")
+    )
+
+
+# ---------------------------------------------------------------- Level 9 (changes data)
+
+
+def get_or_create_tag(name: str) -> tuple[Tag, bool]:
+    """Return the tag with this name and True if it was created. Search by the unique slug."""
+    return Tag.objects.get_or_create(slug=slugify(name), defaults={"name": name})
+
+
+def publish_old_drafts(days: int) -> int:
+    """Publish all drafts older than `days` days with one query. Return how many changed."""
+    now = timezone.now()
+    cutoff = now - timedelta(days=days)
+    # update() does not call save(), so auto_now does not work: set updated_at ourselves.
+    return Post.objects.filter(status=Post.Status.DRAFT, created_at__lt=cutoff).update(
+        status=Post.Status.PUBLISHED,
+        updated_at=now,
+    )
+
+
+def tag_category_posts(category_slug: str, tag_slug: str) -> int:
+    """Add the tag to every post of the category. Return the number of posts in the category."""
+    tag = Tag.objects.get(slug=tag_slug)
+    post_ids = list(Post.objects.filter(category__slug=category_slug).values_list("id", flat=True))
+    tag.posts.add(*post_ids)  # add() skips the posts that already have this tag
+    return len(post_ids)
+
+
+def merge_categories(source_slug: str, target_slug: str) -> int:
+    """Move all posts of the source category to the target one, then delete the source."""
+    source = Category.objects.get(slug=source_slug)
+    target = Category.objects.get(slug=target_slug)
+    with transaction.atomic():
+        moved = Post.objects.filter(category=source).update(category=target)
+        source.delete()  # delete AFTER the move, or the posts would lose their category
+    return moved
+
+
+def delete_inactive_users_comments() -> int:
+    """Delete all comments written by inactive users. Return how many were deleted."""
+    _, deleted_per_model = Comment.objects.filter(author__is_active=False).delete()
+    return deleted_per_model.get(Comment._meta.label, 0)
+
+
+# ---------------------------------------------------------------- Level 10
+
+
+def published_feed() -> list[str]:
+    """Return the newest published posts as lines "title | author email | category name"."""
+    posts = (
+        Post.objects.filter(status=Post.Status.PUBLISHED)
+        .select_related("author", "category")
+        .order_by("-created_at")[:FEED_LIMIT]
+    )
+    lines = []
+    for post in posts:
+        category_name = post.category.name if post.category else UNCATEGORIZED_LABEL
+        lines.append(FEED_LINE_SEPARATOR.join([post.title, post.author.email, category_name]))
+    return lines
+
+
+def newest_posts_with_tags() -> list[str]:
+    """Return the newest posts as lines "title: tag1, tag2". At most 2 SQL queries."""
+    posts = Post.objects.prefetch_related(
+        Prefetch("tags", queryset=Tag.objects.order_by("name"))
+    ).order_by("-created_at")[:NEWEST_TAGGED_POSTS_LIMIT]
+    return [
+        f"{post.title}: {TAG_LIST_SEPARATOR.join(tag.name for tag in post.tags.all())}"
+        for post in posts
+    ]
+
+
+def categories_with_published_posts() -> dict[str, list[str]]:
+    """Return {category name: [titles of its published posts, newest first]}. 2 SQL queries."""
+    published = Post.objects.filter(status=Post.Status.PUBLISHED).order_by("-created_at")
+    categories = Category.objects.order_by("name").prefetch_related(
+        Prefetch("posts", queryset=published, to_attr="published_posts")
+    )
+    return {
+        category.name: [post.title for post in category.published_posts]
+        for category in categories
+    }
 
 
 QUERIES: dict[int, Callable[..., Any]] = {
@@ -301,5 +450,15 @@ QUERIES: dict[int, Callable[..., Any]] = {
     34: popular_tags,
     35: posts_per_status,
     36: users_activity,
-
+    37: search_users_by_full_name,
+    38: published_posts_per_month,
+    39: posts_with_popularity,
+    40: get_or_create_tag,
+    41: publish_old_drafts,
+    42: tag_category_posts,
+    43: merge_categories,
+    44: delete_inactive_users_comments,
+    45: published_feed,
+    46: newest_posts_with_tags,
+    47: categories_with_published_posts,
 }
